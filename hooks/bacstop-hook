@@ -1,0 +1,164 @@
+#!/usr/bin/env bash
+#
+# BACstop git hook
+# Runs a BACtrack breathalyzer check before commit or push.
+#
+# Spice levels:
+#   verde  — informational only, always allows the action
+#   hot    — blocks the action if BAC is below threshold
+#   diablo — blocks AND nukes your changes if BAC is below threshold
+#
+# Configuration read from .bacstop (key=value):
+#   threshold=0.00
+#   spice=hot
+#   hook=pre-push
+#
+# Environment variable overrides:
+#   BACSTOP_THRESHOLD, BACSTOP_SPICE
+#
+
+set -uo pipefail
+
+# ── Find repo root ──────────────────────────────────────────────
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+CONFIG="$REPO_ROOT/.bacstop"
+
+# ── Read config ─────────────────────────────────────────────────
+read_config() {
+    local key="$1"
+    local default="$2"
+    if [ -f "$CONFIG" ]; then
+        local val
+        val="$(grep -E "^${key}=" "$CONFIG" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '[:space:]')"
+        if [ -n "$val" ]; then
+            echo "$val"
+            return
+        fi
+    fi
+    echo "$default"
+}
+
+THRESHOLD="${BACSTOP_THRESHOLD:-$(read_config threshold 0.00)}"
+SPICE="${BACSTOP_SPICE:-$(read_config spice hot)}"
+HOOK_TYPE="$(read_config hook pre-push)"
+
+# ── Detect which hook we're running as ──────────────────────────
+# $0 is the hook path, e.g. .git/hooks/pre-push or .git/hooks/pre-commit
+HOOK_NAME="$(basename "$0")"
+
+# ── Spice label ─────────────────────────────────────────────────
+case "$SPICE" in
+    verde)  SPICE_LABEL="VERDE (informational)" ;;
+    diablo) SPICE_LABEL="DIABLO (destructive)"  ;;
+    *)      SPICE_LABEL="HOT (blocking)"         ;;
+esac
+
+# ── Find bactrack command ───────────────────────────────────────
+BACTRACK=""
+
+if command -v bactrack &>/dev/null; then
+    BACTRACK="bactrack"
+elif [ -x "$REPO_ROOT/venv/bin/bactrack" ]; then
+    BACTRACK="$REPO_ROOT/venv/bin/bactrack"
+elif [ -x "$REPO_ROOT/.venv/bin/bactrack" ]; then
+    BACTRACK="$REPO_ROOT/.venv/bin/bactrack"
+else
+    echo ""
+    echo "  BACstop: bactrack command not found."
+    echo "  Install it with: pip install -e $REPO_ROOT"
+    echo ""
+    exit 1
+fi
+
+# ── Banner ──────────────────────────────────────────────────────
+echo ""
+echo "  ╔══════════════════════════════════════╗"
+echo "  ║            BACstop Check             ║"
+echo "  ╠══════════════════════════════════════╣"
+printf "  ║  Hook:      %-24s ║\n" "$HOOK_NAME"
+printf "  ║  Spice:     %-24s ║\n" "$SPICE"
+printf "  ║  Threshold: %-24s ║\n" "${THRESHOLD}%"
+echo "  ╚══════════════════════════════════════╝"
+echo ""
+
+# ── Run the check ───────────────────────────────────────────────
+$BACTRACK check --threshold "$THRESHOLD"
+EXIT_CODE=$?
+
+# ── Handle result based on spice level ──────────────────────────
+
+# Exit code 0 = BAC above threshold (pass)
+# Exit code 1 = BAC below threshold (fail)
+# Exit code 2 = device/test error
+
+if [ $EXIT_CODE -eq 2 ]; then
+    echo ""
+    echo "  ❌ BACstop check failed (device error)."
+    echo "  Blocked for safety."
+    echo ""
+    exit 1
+fi
+
+if [ $EXIT_CODE -eq 0 ]; then
+    # Passed — allow regardless of spice level
+    echo ""
+    echo "  ✅ BAC verified. You're good."
+    echo ""
+    exit 0
+fi
+
+# ── Below threshold — spice determines what happens ─────────────
+
+case "$SPICE" in
+
+    verde)
+        echo ""
+        echo "  🟢 BAC below threshold, but spice=verde."
+        echo "  Letting it slide. Be careful out there."
+        echo ""
+        exit 0
+        ;;
+
+    diablo)
+        echo ""
+        echo "  🔥🔥🔥 DIABLO MODE 🔥🔥🔥"
+        echo ""
+        echo "  BAC below threshold. Nuking your changes."
+        echo ""
+
+        if [ "$HOOK_NAME" = "pre-commit" ]; then
+            # Wipe staged changes and restore working tree to HEAD
+            echo "  Restoring all staged and working tree changes..."
+            git restore --staged --worktree . 2>/dev/null
+            # Also remove any untracked files that were staged
+            git clean -fd 2>/dev/null
+            echo "  💀 All changes destroyed. Start over."
+        else
+            # pre-push: reset to remote tracking branch
+            UPSTREAM="$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null || true)"
+            if [ -n "$UPSTREAM" ]; then
+                echo "  Resetting to $UPSTREAM..."
+                git reset --hard "$UPSTREAM" 2>/dev/null
+                echo "  💀 Local commits obliterated."
+            else
+                echo "  No upstream branch found. Dropping the last commit..."
+                git reset --hard HEAD~1 2>/dev/null
+                echo "  💀 Last commit destroyed."
+            fi
+        fi
+
+        echo ""
+        echo "  Maybe sober up before trying again."
+        echo ""
+        exit 1
+        ;;
+
+    *)
+        # hot (default)
+        echo ""
+        echo "  🌶️  BAC too low. ${HOOK_NAME} blocked."
+        echo "  Come back when you've had a drink."
+        echo ""
+        exit 1
+        ;;
+esac

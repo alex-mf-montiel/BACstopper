@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bactrack"
+version = "1.0.0"
+description = "Bluetooth client for BACtrack breathalyzers"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "bleak>=0.21.0",
+    "typer>=0.9.0",
+]
+
+[project.scripts]
+bactrack = "bactrack.cli:main"
+
+[tool.setuptools]
+packages = ["bactrack"]
+
+[tool.setuptools.package-data]
+bactrack = ["../hooks/*"]
