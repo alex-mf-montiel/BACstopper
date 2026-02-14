@@ -1,202 +1,99 @@
-# BACtrack Bluetooth Client
+Have you ever worried that your code is too *boring*?
 
-✅ **Fully reverse-engineered** BACtrack Bluetooth protocol
-✅ **Beautiful terminal UI** with customizable themes
-✅ **Git hook support** for BAC-gated commits
-✅ **Modular design** - use as library or CLI
+Did you feel inspired by that [scene](https://www.youtube.com/watch?v=uxKmDWDUZ5A) in The Social Network where those guys were ripping shots while they were ripping code?
 
-## Installation
+Are you thinking to yourself RIGHT NOW "wow I'd love to get the booze flowing while I pump out line after line of intoxicated programming *beauty* but there's no way of being 100% sure that my codebase is protected from the dangers of sobriety"?
 
-```bash
+You're so stupid!!! The answer is here!
+
+Introducing:
+
+# BACStop: The git hook that keeps the party going!
+
+**What it is:**
+A git hook that forces you to take a BAC test and stops you in your goddam tracks from pushing any code if you aren't over the legal limit. It's sort of like the sobriety checkpoints they do to catch drunk drivers except it works in reverse. And also for coders. You get it.
+
+**What it isn't:**
+Going to let you write boring, dumb, and **ugly** code like what's probably permeating your old codebase! 🤮
+
+**What you are:**
+About to have a great time and write so much functional and sexy code!!!
+
+---
+
+## How does it work??
+
+Glad you asked! The BACStopper comes in three patented[^1] flavors:
+
+> 🟢 **Verde** 🟢
+>
+> The chillest level. Verde mode will check your BAC level but if it's not up to snuff he'll let it slide.
+
+> 🌶️ **Hot** 🌶️
+>
+> The hard stopper. Hot mode will check your BAC level and won't even let you THINK about pushing that code if you're not drunk enough.
+
+> 🔥🔥🔥 **DIABLO** 🔥🔥🔥
+>
+> The agent of chaos. Diablo doesn't fuck around. If you're not over the limit when you try to push that code then not only are you for sure not pushing that code but he will also NUKE all your changes. FOREVER. Not for the faint of heart.
+
+---
+
+## Boring dumb stuff about how to actually use it that I'm just going to let AI write because I can't be bothered but that you actually will find useful and probably need to know:
+
+### How to install it
+
+You need Python 3.8+ and a [BACtrack C8 Keychain Breathalyzer](https://a.co/d/0gD5uZdR). That's the only device this has been built and tested for.
+
+```
 pip install -e .
 ```
 
-## CLI Commands
+That's it.
 
-### Take a Test
+### How to use it
 
-```bash
-# With full UI (default theme)
-bactrack test
-
-# With custom theme
-bactrack test --theme matrix
-bactrack test --theme retro
-bactrack test --theme minimal
-
-# No UI (just output)
-bactrack test --no-ui
-```
-
-### Check BAC (Git Hook)
-
-```bash
-bactrack check --threshold 0.08
-```
-
-**Exit codes:**
-- `0` - BAC >= threshold (ALLOWED)
-- `1` - BAC < threshold (BLOCKED)
-- `2` - Test failed/error
-
-### Device Info
-
-```bash
-bactrack info
-```
-
-## Git Hook
-
-BACstop ships with a git hook that runs a breathalyzer check before commit or push.
-
-### Quick Install
-
-```bash
-# Default: pre-push hook, hot spice, 0.00 threshold
-bactrack install
-
-# Pre-commit hook with diablo spice at 0.05%
-bactrack install --hook pre-commit --spice diablo --threshold 0.05
-
-# Install into a different repo
-bactrack install --repo /path/to/repo --spice verde
-```
-
-### Spice Levels
-
-| Spice | What happens when BAC is below threshold |
-|-------|------------------------------------------|
-| **verde** | Shows your BAC but lets you through anyway |
-| **hot** | Blocks the commit/push |
-| **diablo** | Blocks AND **destroys your changes** (restores staged files on pre-commit, hard resets to upstream on pre-push) |
-
-### Hook Type
-
-| Option | When it runs |
-|--------|-------------|
-| `--hook pre-commit` | Before every `git commit` |
-| `--hook pre-push` | Before every `git push` |
-
-### Configuration
-
-The `.bacstop` config file is created automatically and uses key=value format:
+Hook it up to whichever repo you want:
 
 ```
-threshold=0.05
-spice=hot
-hook=pre-push
+bactrack install --repo /path/to/your/repo --spice hot
 ```
 
-Commit it to share settings with your team. Environment variables override the file:
+Options:
+- `--spice` — `verde`, `hot`, or `diablo` (default: `hot`)
+- `--hook` — `pre-commit` or `pre-push` (default: `pre-push`)
+- `--threshold` — BAC % to enforce (default: `0.00`)
 
-| Variable | Overrides |
-|----------|-----------|
-| `BACSTOP_THRESHOLD` | `threshold` |
-| `BACSTOP_SPICE` | `spice` |
-
-### Uninstall
-
-```bash
-bactrack uninstall
-```
-
-### Manual Install
-
-```bash
-cp hooks/bacstop-hook .git/hooks/pre-push   # or pre-commit
-chmod +x .git/hooks/pre-push
-cat > .bacstop << 'EOF'
-threshold=0.05
-spice=hot
-hook=pre-push
-EOF
-```
-
-## Library Usage
-
-### Basic Test
-
-```python
-from bactrack import BACtrackClient
-import asyncio
-
-async def main():
-    client = BACtrackClient()
-    await client.connect()
-
-    result = await client.take_test(
-        callback=lambda n: print(n['message'])
-    )
-
-    print(f"BAC: {result:.4f}%")
-    await client.disconnect()
-
-asyncio.run(main())
-```
-
-### With Terminal UI
-
-```python
-from bactrack import BACtrackClient, TerminalUI
-import asyncio
-
-async def main():
-    ui = TerminalUI("matrix")
-    client = BACtrackClient()
-
-    ui.show_connecting()
-    await client.connect()
-    ui.show_connected(client.device_address)
-    ui.show_get_ready()
-
-    result = await client.take_test(
-        callback=ui.update_from_notification
-    )
-
-    ui.show_result(result)
-    await client.disconnect()
-
-asyncio.run(main())
-```
-
-### Custom Color Theme
-
-```python
-from bactrack import ColorScheme, TerminalUI
-
-my_theme = ColorScheme(
-    header="95",       # Magenta
-    countdown="93",    # Yellow
-    blow="92",         # Green
-    analyzing="94",    # Blue
-    result_sober="92",
-    result_under="93",
-    result_over="91",
-)
-
-ui = TerminalUI(my_theme)
-```
-
-**ANSI color codes:** 91=Red, 92=Green, 93=Yellow, 94=Blue, 95=Magenta, 96=Cyan, 97=White
-
-## Protocol
-
-See [PROTOCOL.md](PROTOCOL.md) for complete Bluetooth protocol documentation.
-
-## Project Structure
+To remove it:
 
 ```
-new_attempt/
-├── bactrack/
-│   ├── __init__.py      # Package exports
-│   ├── client.py        # BACtrack Bluetooth client
-│   ├── ui.py            # Terminal UI components
-│   └── cli.py           # Typer CLI commands
-├── pyproject.toml       # Package config
-├── PROTOCOL.md          # Protocol documentation
-└── README.md            # This file
+bactrack uninstall --repo /path/to/your/repo
 ```
 
-## License
+### Output
 
-MIT
+When the hook fires, you'll see something like this:
+
+```
+  ╔══════════════════════════════════════╗
+  ║            BACstop Check             ║
+  ╠══════════════════════════════════════╣
+  ║  Hook:      pre-push                 ║
+  ║  Spice:     hot                      ║
+  ║  Threshold: 0.00%                    ║
+  ╚══════════════════════════════════════╝
+```
+
+Then it connects to your breathalyzer, walks you through the test, and either lets you through or shuts you down depending on your spice level.
+
+### CLI vs hook
+
+The hook runs automatically on commit/push. But you can also use it standalone:
+
+- `bactrack test` — take a breath test with a fancy UI (just for fun)
+- `bactrack check` — run a BAC check and get an exit code (what the hook uses under the hood)
+- `bactrack info` — see if your breathalyzer is connected
+
+---
+
+[^1]: Not actually patented. Why did I even say that? Please don't sue me, Taco Bell. I have great fucking lawyers you don't want the smoke. Fuck off.
