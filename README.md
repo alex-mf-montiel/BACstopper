@@ -94,6 +94,26 @@ The hook runs automatically on commit/push. But you can also use it standalone:
 - `bactrack check` — run a BAC check and get an exit code (what the hook uses under the hood)
 - `bactrack info` — see if your breathalyzer is connected
 
+### Run a test from the CLI
+
+To verify Bluetooth discovery, connection, and the complete breath-test flow
+without running the HTTP server or installing a git hook:
+
+```sh
+bactrack test
+```
+
+Keep the BACtrack device nearby and available for pairing, then follow the
+countdown and blow prompts. For plain terminal output, which is useful over SSH
+or when diagnosing the device on a server, disable the interactive UI:
+
+```sh
+bactrack test --no-ui
+```
+
+The command prints the final BAC result or a device/test failure. Discovery and
+connection errors exit nonzero. Use `bactrack test --help` to see all options.
+
 ### Local HTTP API
 
 Start the platform-agnostic local server with:
