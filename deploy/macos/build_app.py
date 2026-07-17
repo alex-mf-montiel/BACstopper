@@ -64,7 +64,14 @@ def build_app(output: Path) -> None:
             check=True,
         )
 
-    shutil.copy2(venv / "pyvenv.cfg", temporary / "Contents" / "pyvenv.cfg")
+    source_config = (venv / "pyvenv.cfg").read_text().splitlines()
+    config_lines = [
+        f"home = {base_prefix / 'bin'}" if line.startswith("home = ") else line
+        for line in source_config
+    ]
+    (temporary / "Contents" / "pyvenv.cfg").write_text(
+        "\n".join(config_lines) + "\n"
+    )
     shutil.copy2(source_dir / "server_entry.py", resources_dir / "server_entry.py")
 
     with (source_dir / "Info.plist").open("rb") as source:
