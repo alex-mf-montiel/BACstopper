@@ -4,6 +4,7 @@ import asyncio
 import copy
 import json
 import logging
+import threading
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional, Set
@@ -91,10 +92,10 @@ class TestManager:
     def __init__(self, client_factory: Callable[[], BACtrackClient] = BACtrackClient):
         self.client_factory = client_factory
         self.records: Dict[str, TestRecord] = {}
-        self._create_lock = asyncio.Lock()
+        self._create_lock = threading.Lock()
 
     async def create_test(self, metadata: Any = None) -> Dict[str, Any]:
-        async with self._create_lock:
+        with self._create_lock:
             if any(
                 record.state.status not in TERMINAL_STATUSES
                 for record in self.records.values()

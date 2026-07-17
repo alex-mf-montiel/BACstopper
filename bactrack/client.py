@@ -71,7 +71,8 @@ class BACtrackClient:
         if self.client and self.client.is_connected:
             await self.client.disconnect()
 
-    def _decode_notification(self, data: bytes) -> dict:
+    @staticmethod
+    def _decode_notification(data: bytes) -> dict:
         """
         Decode a notification from the device.
 
