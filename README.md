@@ -113,6 +113,12 @@ bactrack test --no-ui
 
 The command prints the final BAC result or a device/test failure. Discovery and
 connection errors exit nonzero. Use `bactrack test --help` to see all options.
+When diagnosing a stalled Bluetooth operation, enable stage and raw-notification
+logging with:
+
+```sh
+bactrack test --no-ui --debug
+```
 
 ### Local HTTP API
 

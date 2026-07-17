@@ -109,10 +109,11 @@ class TerminalUI:
         c = self.colors
         color = c.result_sober if bac == 0.0 else (c.result_under if bac < 0.08 else c.result_over)
         status = "Sober" if bac == 0.0 else ("Under Legal Limit" if bac < 0.08 else "Over Legal Limit")
-        print(f"\n{c.bold}{color}")
-        print("        ╔════════════════════════════════╗")
-        print(f"        ║      BAC: {bac:.4f}%           ║")
-        print(f"        ║      {status:^22}      ║")
+        content_width = 32
+        print(f"{c.bold}{color}")
+        print(f"        ╔{'═' * content_width}╗")
+        print(f"        ║{f'BAC: {bac:.4f}%':^{content_width}}║")
+        print(f"        ║{status:^{content_width}}║")
         print("        ╚════════════════════════════════╝")
         print(f"{c.reset}\n")
 

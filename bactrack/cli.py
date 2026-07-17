@@ -1,5 +1,6 @@
 """CLI interface for BACtrack breathalyzer."""
 import asyncio
+import logging
 import os
 import shutil
 import stat
@@ -16,8 +17,14 @@ app = typer.Typer(help="BACtrack breathalyzer CLI")
 def test(
     theme: str = typer.Option("default", "--theme", "-t", help="UI theme"),
     no_ui: bool = typer.Option(False, "--no-ui", help="Disable UI"),
+    debug: bool = typer.Option(False, "--debug", help="Enable BLE diagnostic logs"),
 ):
     """Take a breath test with full UI."""
+    if debug:
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        )
     asyncio.run(run_test_with_ui(theme, no_ui))
 
 

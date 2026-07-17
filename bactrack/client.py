@@ -21,6 +21,10 @@ class BACtrackClient:
     # Command to start a breath test
     CMD_START_TEST = bytes.fromhex("0001")
 
+    # BLE calls can otherwise wait indefinitely when CoreBluetooth loses a
+    # characteristic callback. The overall breath-test timeout starts later.
+    GATT_OPERATION_TIMEOUT = 10.0
+
     def __init__(self, device_address: Optional[str] = None):
         """
         Initialize BACtrack client.
@@ -79,6 +83,16 @@ class BACtrackClient:
         byte_array = [f"{b:02x}" for b in data]
 
         def notification(notification_type, message, **values):
+            logger.debug(
+                "BACtrack notification received: type=%s raw=%s",
+                notification_type,
+                full_hex,
+                extra={
+                    "event": "raw_notification",
+                    "notification_type": notification_type,
+                    "raw_notification": full_hex,
+                },
+            )
             return {
                 "type": notification_type,
                 "message": message,
@@ -224,12 +238,47 @@ class BACtrackClient:
             elif decoded["type"] in ["cancelled", "blow_error"]:
                 self._test_complete.set()
 
-        # Subscribe to notifications
-        await self.client.start_notify(self.CHAR_UUID, notification_handler)
+        logger.info(
+            "Subscribing to BACtrack notifications",
+            extra={"event": "notification_subscribe_started"},
+        )
+        try:
+            await asyncio.wait_for(
+                self.client.start_notify(self.CHAR_UUID, notification_handler),
+                timeout=self.GATT_OPERATION_TIMEOUT,
+            )
+        except asyncio.TimeoutError as exc:
+            raise asyncio.TimeoutError(
+                "Timed out subscribing to BACtrack notifications"
+            ) from exc
+        logger.info(
+            "Subscribed to BACtrack notifications",
+            extra={"event": "notification_subscribe_complete"},
+        )
 
         try:
             # Send start command
-            await self.client.write_gatt_char(self.CHAR_UUID, self.CMD_START_TEST, response=True)
+            logger.info(
+                "Writing BACtrack start command",
+                extra={"event": "start_command_write_started"},
+            )
+            try:
+                await asyncio.wait_for(
+                    self.client.write_gatt_char(
+                        self.CHAR_UUID,
+                        self.CMD_START_TEST,
+                        response=True,
+                    ),
+                    timeout=self.GATT_OPERATION_TIMEOUT,
+                )
+            except asyncio.TimeoutError as exc:
+                raise asyncio.TimeoutError(
+                    "Timed out writing the BACtrack start command"
+                ) from exc
+            logger.info(
+                "BACtrack start command written",
+                extra={"event": "start_command_write_complete"},
+            )
 
             # Wait for test to complete or timeout
             try:
@@ -244,7 +293,16 @@ class BACtrackClient:
 
         finally:
             # Unsubscribe
-            await self.client.stop_notify(self.CHAR_UUID)
+            try:
+                await asyncio.wait_for(
+                    self.client.stop_notify(self.CHAR_UUID),
+                    timeout=self.GATT_OPERATION_TIMEOUT,
+                )
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "Timed out unsubscribing from BACtrack notifications",
+                    extra={"event": "notification_unsubscribe_timeout"},
+                )
 
         return self.bac_result
 
