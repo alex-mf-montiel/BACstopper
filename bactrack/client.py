@@ -142,6 +142,15 @@ class BACtrackClient:
         elif prefix == "8008":
             return notification("blow_error", "Blow error - insufficient breath detected")
 
+        # The official C6 SDK maps status 0x0a to
+        # MOBILE__ERROR_LOW_BATTERY (0x04).
+        elif prefix == "800a":
+            return notification(
+                "error",
+                "BACtrack battery is too low to start a test",
+                error_code="low_battery",
+            )
+
         # BAC Result
         elif hex_str.startswith("81") and len(data) >= 5:
             # Try parsing from different byte positions and divisors
@@ -236,7 +245,7 @@ class BACtrackClient:
             if decoded["type"] == "result":
                 self.bac_result = decoded["value"]
                 self._test_complete.set()
-            elif decoded["type"] in ["cancelled", "blow_error"]:
+            elif decoded["type"] in ["cancelled", "blow_error", "error"]:
                 self._test_complete.set()
 
         logger.info(

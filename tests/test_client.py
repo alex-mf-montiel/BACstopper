@@ -26,6 +26,16 @@ class ResultDecoderTests(unittest.TestCase):
         self.assertEqual(decoded["raw_hex"], packet.hex())
         self.assertEqual(decoded["bytes"], ["80", "01", "05", "00", "15", "e7"])
 
+    def test_low_battery_status_is_a_terminal_device_error(self):
+        decoded = BACtrackClient._decode_notification(bytes.fromhex("80 0a 00 00 15 e7"))
+
+        self.assertEqual(decoded["type"], "error")
+        self.assertEqual(decoded["error_code"], "low_battery")
+        self.assertEqual(
+            decoded["message"],
+            "BACtrack battery is too low to start a test",
+        )
+
 
 class HangingNotifyClient:
     is_connected = True
@@ -48,6 +58,19 @@ class HangingWriteClient:
 
     async def stop_notify(self, characteristic):
         self.stopped = True
+
+
+class DeviceErrorClient:
+    is_connected = True
+
+    async def start_notify(self, characteristic, callback):
+        self.callback = callback
+
+    async def write_gatt_char(self, characteristic, value, response):
+        self.callback(characteristic, bytes.fromhex("80 0a 00 00 15 e7"))
+
+    async def stop_notify(self, characteristic):
+        pass
 
 
 class GattTimeoutTests(unittest.IsolatedAsyncioTestCase):
@@ -75,6 +98,16 @@ class GattTimeoutTests(unittest.IsolatedAsyncioTestCase):
             await client.take_test()
 
         self.assertTrue(fake_client.stopped)
+
+    async def test_device_error_finishes_without_waiting_for_timeout(self):
+        notifications = []
+        client = BACtrackClient()
+        client.client = DeviceErrorClient()
+
+        result = await client.take_test(callback=notifications.append, timeout=1)
+
+        self.assertIsNone(result)
+        self.assertEqual(notifications[0]["error_code"], "low_battery")
 
 
 if __name__ == "__main__":

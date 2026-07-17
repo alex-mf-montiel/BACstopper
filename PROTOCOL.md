@@ -36,6 +36,7 @@ The last 3 bytes (`0x00 0x15 0xE7`) appear to be a consistent footer/checksum.
 | `8006` | `80 06` | Wrapping Up | `00` | Test wrapping up |
 | `8007` | `80 07` | Cancelled | `00` | Test was cancelled or timed out |
 | `8008` | `80 08` | Blow Error | `00` | Insufficient breath detected |
+| `800a` | `80 0a` | Low Battery | `00` | Battery is too low to start a test |
 | `81xx` | `81 ...` | **BAC Result** | See below | Blood Alcohol Content result |
 
 ### BAC Result Format
@@ -97,6 +98,10 @@ If user doesn't blow within ~20 seconds of the beep:
 If user doesn't blow hard/long enough:
 - **Device** sends `8008 00` (blow error)
 
+### Low Battery
+If the device does not have enough charge to start a test:
+- **Device** sends `800a 00` (low battery)
+
 ## Implementation Notes
 
 1. The characteristic supports both **write** and **notify** operations
@@ -110,4 +115,5 @@ If user doesn't blow hard/long enough:
 
 - Reverse engineered from BACtrack C6 model
 - Protocol verified through live Bluetooth capture
+- Low-battery status confirmed against BACtrack's official iOS SDK 2.5.4
 - Compatible with `bleak` Python library on macOS
