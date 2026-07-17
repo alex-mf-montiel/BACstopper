@@ -64,6 +64,7 @@ def build_app(output: Path) -> None:
             check=True,
         )
 
+    shutil.copy2(venv / "pyvenv.cfg", temporary / "Contents" / "pyvenv.cfg")
     shutil.copy2(source_dir / "server_entry.py", resources_dir / "server_entry.py")
 
     with (source_dir / "Info.plist").open("rb") as source:
