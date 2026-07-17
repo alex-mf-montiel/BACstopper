@@ -4,6 +4,19 @@ set -eu
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../../../../.." && pwd)
 
-exec "$REPO_ROOT/.venv/bin/bactrack" serve \
+child_pid=""
+
+stop_server() {
+    if [ -n "$child_pid" ]; then
+        kill -TERM "$child_pid" 2>/dev/null || true
+        wait "$child_pid" 2>/dev/null || true
+    fi
+}
+
+trap stop_server HUP INT TERM
+
+"$REPO_ROOT/.venv/bin/bactrack" serve \
     --host "${BACSTOP_HOST:-0.0.0.0}" \
-    --port "${BACSTOP_PORT:-8000}"
+    --port "${BACSTOP_PORT:-8000}" &
+child_pid=$!
+wait "$child_pid"
