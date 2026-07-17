@@ -82,7 +82,16 @@ def build_app(output: Path) -> None:
         plistlib.dump(info, destination, sort_keys=False)
 
     subprocess.run(
-        ["codesign", "--force", "--deep", "--sign", "-", str(temporary)],
+        [
+            "codesign",
+            "--force",
+            "--deep",
+            "--sign",
+            "-",
+            "--requirements",
+            '=designated => identifier "com.bacstop.server"',
+            str(temporary),
+        ],
         check=True,
     )
     if output.exists():

@@ -211,7 +211,9 @@ open 'deploy/macos/BACstop Server.app'
 Approve Bluetooth access for **BACstop Server** in **System Settings > Privacy
 & Security > Bluetooth**. A LaunchAgent can then launch this application rather
 than Python directly. Remote shells should use `bactrack api-test`; they should
-not be granted direct Bluetooth access through the SSH daemon.
+not be granted direct Bluetooth access through the SSH daemon. The generated
+app uses a stable signing requirement, so this approval remains valid when the
+app is rebuilt at the same path.
 
 ---
 
