@@ -33,15 +33,36 @@ def build_app(output: Path) -> None:
     resources_dir.mkdir(parents=True)
 
     resolved_python = Path(os.path.realpath(python))
+    base_prefix = Path(
+        subprocess.check_output(
+            [str(python), "-c", "import sys; print(sys.base_prefix)"],
+            text=True,
+        ).strip()
+    )
+    python_app_executable = (
+        base_prefix / "Resources" / "Python.app" / "Contents" / "MacOS" / "Python"
+    )
+    source_executable = (
+        python_app_executable if python_app_executable.exists() else resolved_python
+    )
     executable = macos_dir / "BACstopServer"
-    shutil.copy2(resolved_python, executable)
+    shutil.copy2(source_executable, executable)
     executable.chmod(0o755)
 
-    # Apple's Command Line Tools Python launcher resolves its framework library
-    # relative to the executable when it lives inside an application bundle.
-    framework_library = resolved_python.parent.parent / "Python3"
+    framework_library = base_prefix / "Python3"
     if framework_library.exists():
         shutil.copy2(framework_library, temporary / "Contents" / "Python3")
+    if source_executable == python_app_executable:
+        subprocess.run(
+            [
+                "install_name_tool",
+                "-change",
+                "@executable_path/../../../../Python3",
+                "@executable_path/../Python3",
+                str(executable),
+            ],
+            check=True,
+        )
 
     shutil.copy2(source_dir / "server_entry.py", resources_dir / "server_entry.py")
 
