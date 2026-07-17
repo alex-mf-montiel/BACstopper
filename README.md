@@ -94,6 +94,67 @@ The hook runs automatically on commit/push. But you can also use it standalone:
 - `bactrack check` — run a BAC check and get an exit code (what the hook uses under the hood)
 - `bactrack info` — see if your breathalyzer is connected
 
+### Local HTTP API
+
+Start the platform-agnostic local server with:
+
+```sh
+bactrack serve
+```
+
+It listens on `127.0.0.1:8000` by default. Use `--host` and `--port` to change
+the bind address, for example `bactrack serve --host 0.0.0.0 --port 8080`.
+Binding outside localhost exposes control of the Bluetooth device to the network,
+so apply your own network access controls when doing so.
+
+The API keeps test state in memory. Restarting the process clears prior tests,
+and only one test can be active at a time.
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/health` | Check that the API process is running |
+| `POST` | `/tests` | Start a test and return `202 Accepted` immediately |
+| `GET` | `/tests/{test_id}` | Read the complete current test state |
+| `GET` | `/tests/{test_id}/events` | Stream complete state snapshots as Server-Sent Events |
+
+Start a test without metadata:
+
+```sh
+curl -X POST http://127.0.0.1:8000/tests
+```
+
+Metadata is optional JSON data that is stored and returned without being
+interpreted:
+
+```sh
+curl -X POST http://127.0.0.1:8000/tests \
+  -H 'Content-Type: application/json' \
+  -d '{"metadata":{"request_id":"example-42","initiator":"workstation"}}'
+```
+
+The response contains a unique `test_id`. Use it to poll the test:
+
+```sh
+curl http://127.0.0.1:8000/tests/TEST_ID
+```
+
+Or consume live updates with SSE. The stream sends `state` events as status or
+notification data changes, then one `terminal` event and closes:
+
+```sh
+curl -N http://127.0.0.1:8000/tests/TEST_ID/events
+```
+
+Statuses are `scanning`, `connected`, `countdown`, `blow`, `analyzing`,
+`complete`, `cancelled`, `blow_error`, `timeout`, or `error`. Each response also
+contains the latest raw notification, notification history, and the complete raw
+result packet when one was received.
+
+An external automation process can stay generic: send `POST /tests`, retain the
+returned `test_id`, and either poll the corresponding test resource or listen to
+its event stream until a terminal status arrives. It can then use `bac`, `error`,
+and its own returned `metadata` according to that system's local policy.
+
 ---
 
 [^1]: Not actually patented. Why did I even say that? Please don't sue me, Taco Bell. I have great fucking lawyers you don't want the smoke. Fuck off.

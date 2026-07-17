@@ -140,6 +140,17 @@ def info():
     asyncio.run(show_device_info())
 
 
+@app.command()
+def serve(
+    host: str = typer.Option("127.0.0.1", "--host", help="Address to bind"),
+    port: int = typer.Option(8000, "--port", "-p", help="Port to bind"),
+):
+    """Run the local BACtrack HTTP API."""
+    import uvicorn
+
+    uvicorn.run("bactrack.server:app", host=host, port=port)
+
+
 async def run_test_with_ui(theme: str, no_ui: bool):
     """Run test with UI."""
     ui = TerminalUI(theme) if not no_ui else None

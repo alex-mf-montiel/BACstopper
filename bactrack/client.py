@@ -2,9 +2,13 @@
 BACtrack Bluetooth Client - Clean implementation based on reverse engineered protocol
 """
 import asyncio
+import logging
 from bleak import BleakScanner, BleakClient
 from typing import Optional, Callable
 import struct
+
+
+logger = logging.getLogger(__name__)
 
 
 class BACtrackClient:
@@ -32,13 +36,16 @@ class BACtrackClient:
     async def find_device(self) -> str:
         """Scan for and return address of first BACtrack device found."""
         if self.device_address:
+            logger.info("BACtrack device provided", extra={"event": "device_found"})
             return self.device_address
 
+        logger.info("BACtrack discovery started", extra={"event": "discovery_started"})
         devices = await BleakScanner.discover(timeout=10.0)
 
         for device in devices:
             if device.name and "bactrack" in device.name.lower():
                 self.device_address = device.address
+                logger.info("BACtrack device found", extra={"event": "device_found"})
                 return device.address
 
         raise RuntimeError("No BACtrack device found")
@@ -48,6 +55,11 @@ class BACtrackClient:
         address = await self.find_device()
         self.client = BleakClient(address, timeout=20.0)
         await self.client.connect()
+        if self.client.is_connected:
+            logger.info(
+                "BACtrack connection established",
+                extra={"event": "connection_established"},
+            )
         return self.client.is_connected
 
     async def disconnect(self):
@@ -62,12 +74,21 @@ class BACtrackClient:
         Returns:
             dict with 'type', 'message', and optional 'value' keys
         """
-        # Always include full hex for debugging
+        # Always include the raw packet so callers can retain protocol evidence.
         full_hex = data.hex()
         byte_array = [f"{b:02x}" for b in data]
 
+        def notification(notification_type, message, **values):
+            return {
+                "type": notification_type,
+                "message": message,
+                "raw_hex": full_hex,
+                "bytes": byte_array,
+                **values,
+            }
+
         if len(data) < 2:
-            return {"type": "unknown", "message": "Invalid packet", "raw_hex": full_hex, "bytes": byte_array}
+            return notification("unknown", "Invalid packet")
 
         hex_str = data.hex()
         prefix = hex_str[:4]
@@ -75,36 +96,36 @@ class BACtrackClient:
         # Countdown/warmup
         if prefix == "8001" and len(data) >= 3:
             seconds = data[2]
-            return {"type": "countdown", "message": f"Warming up... {seconds}s", "value": seconds}
+            return notification("countdown", f"Warming up... {seconds}s", value=seconds)
 
         # Begin blowing
         elif prefix == "8002":
-            return {"type": "start_blow", "message": "BEGIN BLOWING NOW!"}
+            return notification("start_blow", "BEGIN BLOWING NOW!")
 
         # Keep blowing
         elif prefix == "8003" and len(data) >= 3:
             remaining = data[2]
-            return {"type": "keep_blowing", "message": f"Keep blowing... {remaining}s", "value": remaining}
+            return notification("keep_blowing", f"Keep blowing... {remaining}s", value=remaining)
 
         # Analyzing
         elif prefix == "8004":
-            return {"type": "analyzing", "message": "Analyzing sample..."}
+            return notification("analyzing", "Analyzing sample...")
 
         # Finalizing
         elif prefix == "8005":
-            return {"type": "finalizing", "message": "Finalizing results..."}
+            return notification("finalizing", "Finalizing results...")
 
         # Wrapping up
         elif prefix == "8006":
-            return {"type": "wrapping_up", "message": "Test wrapping up..."}
+            return notification("wrapping_up", "Test wrapping up...")
 
         # Cancelled/timeout
         elif prefix == "8007":
-            return {"type": "cancelled", "message": "Test cancelled or timed out"}
+            return notification("cancelled", "Test cancelled or timed out")
 
         # Blow error (insufficient breath)
         elif prefix == "8008":
-            return {"type": "blow_error", "message": "Blow error - insufficient breath detected"}
+            return notification("blow_error", "Blow error - insufficient breath detected")
 
         # BAC Result
         elif hex_str.startswith("81") and len(data) >= 5:
@@ -146,18 +167,25 @@ class BACtrackClient:
             val_2_3 = struct.unpack("<H", data[2:4])[0]
             bac_percent = val_2_3 / 10000.0
 
-            return {
-                "type": "result",
-                "message": f"BAC Result: {bac_percent:.4f}%",
-                "value": bac_percent,
-                "raw_hex": full_hex,
-                "bytes": byte_array,
-                "raw_value": val_3_4
-            }
+            logger.info(
+                "BACtrack raw result packet",
+                extra={"event": "raw_result_packet", "raw_result_packet": full_hex},
+            )
+            logger.info(
+                "BACtrack result decoded",
+                extra={"event": "decoded_bac", "bac": bac_percent},
+            )
+
+            return notification(
+                "result",
+                f"BAC Result: {bac_percent:.4f}%",
+                value=bac_percent,
+                raw_value=val_2_3,
+            )
 
         # Unknown
         else:
-            return {"type": "unknown", "message": f"Unknown: {hex_str}", "raw_hex": full_hex, "bytes": byte_array}
+            return notification("unknown", f"Unknown: {hex_str}")
 
     async def take_test(
         self,
@@ -207,6 +235,10 @@ class BACtrackClient:
             try:
                 await asyncio.wait_for(self._test_complete.wait(), timeout=timeout)
             except asyncio.TimeoutError:
+                logger.warning(
+                    "BACtrack test timed out",
+                    extra={"event": "test_timeout", "timeout_seconds": timeout},
+                )
                 if callback:
                     callback({"type": "timeout", "message": "Test timed out"})
 
