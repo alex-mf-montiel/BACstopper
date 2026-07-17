@@ -196,14 +196,15 @@ and its own returned `metadata` according to that system's local policy.
 
 macOS grants Bluetooth access to an application identity, not generally to SSH
 sessions or anonymous background Python processes. The repository includes a
-background application at `deploy/macos/BACstop Server.app` with the stable
-bundle ID `com.bacstop.server` and the required Bluetooth usage declaration.
+builder that packages the active virtualenv Python as a background application
+with the stable bundle ID `com.bacstop.server` and the required Bluetooth usage
+declaration.
 
-Before using it as a LaunchAgent, sign it locally and open it once from the Mac
-desktop so macOS can display its Bluetooth permission prompt:
+Build the app, then open it once from the Mac desktop so macOS can display its
+Bluetooth permission prompt:
 
 ```sh
-codesign --force --deep --sign - 'deploy/macos/BACstop Server.app'
+.venv/bin/python deploy/macos/build_app.py
 open 'deploy/macos/BACstop Server.app'
 ```
 
