@@ -120,6 +120,17 @@ logging with:
 bactrack test --no-ui --debug
 ```
 
+On a host where the HTTP service owns the Bluetooth connection, including an
+SSH session into a macOS server, run the same test through the local API:
+
+```sh
+bactrack api-test
+```
+
+This prints each lifecycle update from the server's SSE stream and the final
+BAC result. Use `--url` to target a server on another host and `--metadata` to
+attach JSON metadata. The SSH process does not need direct Bluetooth access.
+
 ### Local HTTP API
 
 Start the platform-agnostic local server with:
@@ -180,6 +191,26 @@ An external automation process can stay generic: send `POST /tests`, retain the
 returned `test_id`, and either poll the corresponding test resource or listen to
 its event stream until a terminal status arrives. It can then use `bac`, `error`,
 and its own returned `metadata` according to that system's local policy.
+
+### macOS background Bluetooth access
+
+macOS grants Bluetooth access to an application identity, not generally to SSH
+sessions or anonymous background Python processes. The repository includes a
+background application at `deploy/macos/BACstop Server.app` with the stable
+bundle ID `com.bacstop.server` and the required Bluetooth usage declaration.
+
+Before using it as a LaunchAgent, sign it locally and open it once from the Mac
+desktop so macOS can display its Bluetooth permission prompt:
+
+```sh
+codesign --force --deep --sign - 'deploy/macos/BACstop Server.app'
+open 'deploy/macos/BACstop Server.app'
+```
+
+Approve Bluetooth access for **BACstop Server** in **System Settings > Privacy
+& Security > Bluetooth**. A LaunchAgent can then launch this application rather
+than Python directly. Remote shells should use `bactrack api-test`; they should
+not be granted direct Bluetooth access through the SSH daemon.
 
 ---
 

@@ -1,5 +1,6 @@
 """CLI interface for BACtrack breathalyzer."""
 import asyncio
+import json
 import logging
 import os
 import shutil
@@ -7,6 +8,7 @@ import stat
 import sys
 from pathlib import Path
 import typer
+from .api_client import BACtrackAPIError, create_remote_test, stream_remote_test
 from .client import BACtrackClient
 from .ui import TerminalUI
 
@@ -156,6 +158,60 @@ def serve(
     import uvicorn
 
     uvicorn.run("bactrack.server:app", host=host, port=port)
+
+
+@app.command("api-test")
+def api_test(
+    url: str = typer.Option(
+        "http://127.0.0.1:8000",
+        "--url",
+        help="BACtrack API base URL",
+    ),
+    metadata: str = typer.Option(
+        "{}",
+        "--metadata",
+        help="JSON metadata to retain with the test",
+    ),
+):
+    """Run a breath test through a BACtrack HTTP API."""
+    try:
+        parsed_metadata = json.loads(metadata)
+    except json.JSONDecodeError as exc:
+        raise typer.BadParameter(f"Invalid metadata JSON: {exc.msg}") from exc
+
+    try:
+        initial = create_remote_test(url, metadata=parsed_metadata)
+        test_id = initial["test_id"]
+        print(f"Started BAC test {test_id}")
+
+        last_update = None
+        terminal = None
+        for _, state in stream_remote_test(url, test_id):
+            update = (state.get("status"), state.get("message"))
+            if update != last_update:
+                print(f"  [{update[0]}] {update[1]}")
+                last_update = update
+            if state.get("status") in {
+                "complete",
+                "cancelled",
+                "blow_error",
+                "timeout",
+                "error",
+            }:
+                terminal = state
+                break
+    except (BACtrackAPIError, KeyError) as exc:
+        print(f"Error: {exc}")
+        raise typer.Exit(2)
+
+    if terminal is None:
+        print("Error: BACtrack event stream ended without a terminal state")
+        raise typer.Exit(2)
+    if terminal["status"] != "complete":
+        print(f"Test failed: {terminal.get('error') or terminal.get('message')}")
+        raise typer.Exit(1)
+
+    print(f"\nBAC: {terminal['bac']:.4f}%")
 
 
 async def run_test_with_ui(theme: str, no_ui: bool):
