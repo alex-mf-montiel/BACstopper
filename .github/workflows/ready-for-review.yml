@@ -28,8 +28,11 @@ name: Ready for review
 on:
   pull_request:
     types: [opened, synchronize, reopened, edited]
-  check_suite:
-    types: [completed]
+  # No check_suite trigger here - it never actually worked. GitHub does not
+  # fire check_suite events for suites created by GitHub Actions itself
+  # (anti-loop protection), which is nearly every check in this repo. The
+  # reusable workflow now polls for pending checks within a single run
+  # instead of depending on that event. See its own comments for the story.
 
 permissions:
   pull-requests: write
