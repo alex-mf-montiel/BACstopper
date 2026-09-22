@@ -1,0 +1,43 @@
+name: Ready for review
+# Copy this file into a project repo at .github/workflows/ready-for-review.yml
+# unchanged. The actual logic lives in the small public
+# alexbmontiel/ready-for-review-workflow repo so it only needs fixing in one
+# place. See that repo's README and agentic-workflow's own
+# policies/review-and-handoff.md for the marker convention it depends on.
+#
+# It's a separate *public* repo (not part of agentic-workflow itself)
+# specifically so it's callable from repos on either GitHub account
+# (alexbmontiel or alex-mf-montiel) - private reusable workflows can only be
+# shared with other repos owned by the same account/org, which doesn't work
+# across this project's two-account split. No Settings -> Actions -> Access
+# configuration is needed because of that.
+#
+# The explicit `permissions:` block below is required even though the
+# called workflow also declares its own - most new repos default their
+# GITHUB_TOKEN to read-only, and a reusable-workflow call can't be granted
+# more than what the caller itself is allowed. Without this, the run fails
+# immediately with "startup_failure" before any job even starts.
+#
+# Also requires a repo secret named READY_FOR_REVIEW_PAT: a fine-grained
+# PAT with "Pull requests: Read and write" on this repo. GITHUB_TOKEN is
+# documented to be blocked from the markPullRequestReadyForReview mutation
+# ("Resource not accessible by integration") - confirmed directly, not
+# theoretical - so the default token can't do the one thing this exists to
+# do. Set it with: gh secret set READY_FOR_REVIEW_PAT --repo <owner>/<repo>
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+  check_suite:
+    types: [completed]
+
+permissions:
+  pull-requests: write
+  checks: read
+  contents: read
+
+jobs:
+  ready-for-review:
+    uses: alexbmontiel/ready-for-review-workflow/.github/workflows/ready-for-review.yml@main
+    secrets:
+      READY_FOR_REVIEW_PAT: ${{ secrets.READY_FOR_REVIEW_PAT }}
