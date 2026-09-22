@@ -39,5 +39,8 @@ permissions:
 jobs:
   ready-for-review:
     uses: alexbmontiel/ready-for-review-workflow/.github/workflows/ready-for-review.yml@main
+    with:
+      linear_reviewer_id: "8842ae49-c417-4991-b8f1-527199563bfe" # Alex Montiel, Crawl Haul
     secrets:
       READY_FOR_REVIEW_PAT: ${{ secrets.READY_FOR_REVIEW_PAT }}
+      LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
