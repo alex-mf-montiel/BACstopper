@@ -1,5 +1,7 @@
 import asyncio
 import unittest
+from types import SimpleNamespace
+from unittest import mock
 
 from bactrack.client import BACtrackClient
 
@@ -108,6 +110,45 @@ class GattTimeoutTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsNone(result)
         self.assertEqual(notifications[0]["error_code"], "low_battery")
+
+
+class ConnectingClient:
+    is_connected = True
+
+    def __init__(self, device, timeout):
+        self.device = device
+
+    async def connect(self):
+        pass
+
+
+class DiscoveryTests(unittest.IsolatedAsyncioTestCase):
+    async def test_connects_to_the_device_discovery_found(self):
+        device = SimpleNamespace(address="2D84C8B6", name="BACtrack C8")
+        find = mock.AsyncMock(return_value=device)
+        client = BACtrackClient()
+
+        with mock.patch("bactrack.client.BleakScanner.find_device_by_filter", find), \
+                mock.patch("bactrack.client.BleakClient", ConnectingClient):
+            self.assertTrue(await client.connect())
+
+        self.assertIs(client.client.device, device)
+        self.assertEqual(client.device_address, "2D84C8B6")
+        self.assertEqual(find.await_args.kwargs["timeout"], BACtrackClient.DISCOVERY_TIMEOUT)
+
+    async def test_discovery_matches_only_a_bactrack(self):
+        find = mock.AsyncMock(return_value=None)
+
+        with mock.patch("bactrack.client.BleakScanner.find_device_by_filter", find), \
+                self.assertRaisesRegex(RuntimeError, "No BACtrack device found"):
+            await BACtrackClient().find_device()
+
+        matches = find.await_args.args[0]
+        ad = SimpleNamespace(local_name=None)
+        self.assertTrue(matches(SimpleNamespace(name="BACtrack C8"), ad))
+        self.assertTrue(matches(SimpleNamespace(name=None), SimpleNamespace(local_name="BACtrack")))
+        self.assertFalse(matches(SimpleNamespace(name="AirPods"), ad))
+        self.assertFalse(matches(SimpleNamespace(name=None), ad))
 
 
 if __name__ == "__main__":

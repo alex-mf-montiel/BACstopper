@@ -25,6 +25,11 @@ class BACtrackClient:
     # characteristic callback. The overall breath-test timeout starts later.
     GATT_OPERATION_TIMEOUT = 10.0
 
+    # Give users enough time to power on the device after starting a test.
+    # Discovery stops as soon as a BACtrack advertises, so a long window
+    # costs nothing when it's already on.
+    DISCOVERY_TIMEOUT = 90.0
+
     def __init__(self, device_address: Optional[str] = None):
         """
         Initialize BACtrack client.
@@ -33,6 +38,7 @@ class BACtrackClient:
             device_address: Bluetooth address of device. If None, will scan for any BACtrack device.
         """
         self.device_address = device_address
+        self._device = None
         self.client: Optional[BleakClient] = None
         self.bac_result: Optional[float] = None
         self._test_complete = asyncio.Event()
@@ -44,20 +50,26 @@ class BACtrackClient:
             return self.device_address
 
         logger.info("BACtrack discovery started", extra={"event": "discovery_started"})
-        devices = await BleakScanner.discover(timeout=10.0)
+        # Stop scanning as soon as a BACtrack advertises, and keep the device
+        # it was seen as: the device stops advertising soon after it wakes, so
+        # waiting out the whole scan and then looking it up again by address
+        # missed it.
+        device = await BleakScanner.find_device_by_filter(
+            lambda d, ad: "bactrack" in (d.name or ad.local_name or "").lower(),
+            timeout=self.DISCOVERY_TIMEOUT,
+        )
+        if device is None:
+            raise RuntimeError("No BACtrack device found")
 
-        for device in devices:
-            if device.name and "bactrack" in device.name.lower():
-                self.device_address = device.address
-                logger.info("BACtrack device found", extra={"event": "device_found"})
-                return device.address
-
-        raise RuntimeError("No BACtrack device found")
+        self.device_address = device.address
+        self._device = device
+        logger.info("BACtrack device found", extra={"event": "device_found"})
+        return device.address
 
     async def connect(self) -> bool:
         """Connect to the BACtrack device."""
         address = await self.find_device()
-        self.client = BleakClient(address, timeout=20.0)
+        self.client = BleakClient(self._device or address, timeout=20.0)
         await self.client.connect()
         if self.client.is_connected:
             logger.info(
